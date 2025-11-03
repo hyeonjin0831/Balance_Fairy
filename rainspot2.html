@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RainSpot 초단기 예측 대시보드</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script>
+tailwind.config = {
+  theme: {
+    extend: {
+      colors: {
+        'rain-high': '#DC2626',
+        'rain-medium': '#FBBF24',
+        'rain-low': '#10B981',
+        'primary-blue': '#1D4ED8'
+      },
+      fontFamily: { sans: ['Inter', 'sans-serif'] }
+    }
+  }
+}
+</script>
+<style>
+@keyframes fadeIn { from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:translateY(0);} }
+.animate-fade-in { animation: fadeIn 0.5s ease-out; }
+</style>
+</head>
+<body class="bg-gray-50 min-h-screen p-4 md:p-8 font-sans">
+<div id="app" class="max-w-xl mx-auto bg-white shadow-2xl rounded-2xl overflow-hidden">
+
+<header class="p-5 bg-primary-blue text-white shadow-lg">
+<h1 class="text-xl font-bold flex items-center mb-1">RainSpot 초단기 예측</h1>
+<p id="locationDisplay" class="text-sm font-light cursor-pointer hover:underline" onclick="changeLocation()">📌 위치 확인 중...</p>
+</header>
+
+<main class="p-6">
+<div id="loadingIndicator" class="text-center p-8 hidden">
+<div class="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-blue mx-auto mb-3"></div>
+<p class="text-gray-600 font-semibold">API 데이터 수신 중...</p>
+</div>
+
+<div id="resultContainer" class="animate-fade-in">
+<div class="flex justify-between items-center mb-6 p-4 border rounded-xl shadow-inner bg-gray-50">
+<div class="flex items-center space-x-4">
+<span id="weatherIcon" class="text-4xl">🌤️</span>
+<div>
+<p class="text-3xl font-extrabold" id="currentTemp">22°C</p>
+<p class="text-sm text-gray-500">현재 기온 (모의)</p>
+</div>
+</div>
+<div class="text-right">
+<p class="text-xl font-bold text-gray-700">소나기 예측 확률</p>
+<p id="probDisplay" class="text-4xl font-extrabold text-rain-low">30%</p>
+</div>
+</div>
+
+<div id="statusBox" class="p-4 rounded-xl shadow-md border-l-4 border-rain-low transition-all duration-300 mb-6 bg-white">
+<p id="statusMent" class="text-lg font-semibold text-gray-800">😊 맑거나 약한 비 예상. 안심하고 이동하세요.</p>
+<p id="timeDisplay" class="text-sm text-gray-500 mt-1">⏰ 경과 시간: 0분 0초</p>
+</div>
+
+<div class="mb-6">
+<div id="progressBar" class="h-5 rounded-full bg-rain-low transition-all duration-300" style="width: 30%;"></div>
+<div class="flex justify-between text-xs text-gray-500 mt-1">
+<span>0%</span><span>50%</span><span>100%</span>
+</div>
+</div>
+
+<div class="space-y-3">
+<h2 class="text-sm font-bold text-gray-600 border-b pb-1">☔ 예측 근거</h2>
+<div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+<span class="font-medium text-gray-700">💧 습도</span>
+<div class="flex items-center space-x-2"><span id="humidityValue" class="font-bold text-lg">70%</span><span id="humidityTrend" class="text-sm text-gray-500">- 유지</span></div>
+</div>
+<div class="flex justify-between items-center bg-gray-50 p-3 rounded-lg">
+<span class="font-medium text-gray-700">📉 기압 변화</span>
+<div class="flex items-center space-x-2"><span id="pressureValue" class="font-bold text-lg">0.00 hPa</span><span id="pressureTrend" class="text-sm text-gray-500">- 유지</span></div>
+</div>
+</div>
+</div>
+</main>
+</div>
+
+<script>
+// 변수
+let currentProb = 30, currentTemp = 22, currentHumidity = 70, currentPressure = 1010, elapsed = 0;
+const probDisplay = document.getElementById('probDisplay'), statusMent=document.getElementById('statusMent'), timeDisplay=document.getElementById('timeDisplay'), progressBar=document.getElementById('progressBar'), statusBox=document.getElementById('statusBox'), humidityValue=document.getElementById('humidityValue'), humidityTrend=document.getElementById('humidityTrend'), pressureValue=document.getElementById('pressureValue'), pressureTrend=document.getElementById('pressureTrend'), weatherIcon=document.getElementById('weatherIcon'), currentTempEl=document.getElementById('currentTemp'), locationDisplay=document.getElementById('locationDisplay');
+
+function getStatusEmphasis(prob){
+if(prob>80) return {color:'rain-high',emoji:'🔥',ment:'강한 소나기 예상! 우산 필수!'};
+else if(prob>50) return {color:'rain-medium',emoji:'❗',ment:'소나기 가능성 높음! 대비하세요.'};
+else if(prob>20) return {color:'rain-low',emoji:'💧',ment:'소나기 가능성 약간 있음.'};
+else return {color:'primary-blue',emoji:'😊',ment:'맑거나 약한 비 예상.'};
+}
+function getTrendIndicator(change){if(change>0.05) return"▲ 급상승"; else if(change>0.005)return"△ 상승"; else if(change<-0.05)return"▼ 급하강"; else if(change<-0.005)return"▽ 하강"; else return"- 유지";}
+function getWeatherEmoji(prob){if(prob>=70)return'☔'; else if(prob>=40)return'☁️'; else if(prob<10)return'☀️'; else return'🌥️';}
+
+function changeLocation(){let loc=prompt("위치 입력:");if(loc) locationDisplay.innerHTML=`📌 현재 위치: ${loc} (수동)`;}
+function getRealLocation(){if(navigator.geolocation){navigator.geolocation.getCurrentPosition(pos=>{let lat=pos.coords.latitude.toFixed(4),lon=pos.coords.longitude.toFixed(4);locationDisplay.innerHTML=`📌 현재 위치: ${lat}°N, ${lon}°E`},err=>{locationDisplay.innerHTML=`📌 위치 인식 실패`},{enableHighAccuracy:true,timeout:5000,maxiumAge:0});}else{locationDisplay.innerHTML=`📌 Geolocation 미지원`;}}
+
+function runStep(){
+elapsed++; let baseChange=Math.random()-0.5; currentProb=Math.max(0,Math.min(100,currentProb+baseChange));
+currentHumidity=Math.max(30,Math.min(100,currentHumidity+Math.random()*0.5-0.25));
+currentPressure+=Math.random()*0.1-0.05; currentTemp+=Math.random()*0.5-0.25;
+const {color,emoji,ment}=getStatusEmphasis(currentProb);
+probDisplay.textContent=`${Math.round(currentProb)}%`; statusMent.textContent=`${emoji} ${ment}`; timeDisplay.textContent=`⏰ 경과: ${elapsed}초`;
+humidityValue.textContent=`${currentHumidity.toFixed(1)}%`; pressureValue.textContent=`${currentPressure.toFixed(1)} hPa`; currentTempEl.textContent=`${currentTemp.toFixed(1)}°C`;
+humidityTrend.textContent=getTrendIndicator(Math.random()*0.01-0.005); pressureTrend.textContent=getTrendIndicator(Math.random()*0.01-0.005);
+probDisplay.className=`text-4xl font-extrabold text-${color}`; statusBox.className=`p-4 rounded-xl shadow-md border-l-4 border-${color} transition-all duration-300 mb-6 bg-white`; progressBar.className=`h-5 rounded-full bg-${color} transition-all duration-300`; progressBar.style.width=`${currentProb}%`; weatherIcon.textContent=getWeatherEmoji(currentProb);
+}
+
+document.addEventListener('DOMContentLoaded',()=>{
+getRealLocation();
+setInterval(runStep,1000);
+});
+</script>
+</body>
+</html>
