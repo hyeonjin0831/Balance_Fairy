@@ -196,7 +196,13 @@
       budget = 0;
       total = 0;
       notified = thresholds.map(() => false);
-      localStorage.clear();
+      try {
+        localStorage.removeItem('budget');
+        localStorage.removeItem('total');
+        localStorage.removeItem('notified');
+      } catch(e) {
+        console.error("데이터 초기화 실패", e);
+      }
       updateUI();
       alert("새로운 달로 초기화되었습니다.");
     }
