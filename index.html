@@ -1,677 +1,189 @@
 <!DOCTYPE html>
-<html lang="ko">
+<html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>잔고 요정 (Balance Fairy)</title>
-  <!-- Load Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Balance Fairy - Budget Tracker</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
   <style>
-    /* Custom font fallback for Korean and general text */
     body {
-      font-family: 'Inter', 'Pretendard', 'Noto Sans KR', sans-serif;
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f9fafb;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       min-height: 100vh;
     }
-
-    /* Custom progress bar styles to match Tailwind philosophy */
-    .progress-bar {
-      transition: width 0.5s ease;
-      background: linear-gradient(90deg, #3b82f6, #60a5fa);
-    }
-
-    /* Modal Styles */
-    .modal-overlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-color: rgba(0, 0, 0, 0.4);
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      z-index: 100;
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.3s ease;
-    }
-
-    .modal-overlay.open {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .modal-content {
-      background-color: white;
-      padding: 1.5rem;
-      border-radius: 1rem;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
-      max-width: 300px;
-      width: 90%;
+    header {
+      background: linear-gradient(135deg, #86efac, #3b82f6);
+      color: white;
       text-align: center;
-      transform: translateY(-20px);
-      transition: transform 0.3s ease;
+      padding: 20px 0;
+      width: 100%;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     }
-
-    .modal-overlay.open .modal-content {
-      transform: translateY(0);
+    .container {
+      width: 90%;
+      max-width: 800px;
+      background: white;
+      border-radius: 16px;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      padding: 20px;
+      margin-top: 20px;
     }
-
-    #loading-overlay {
-        display: none;
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(255, 255, 255, 0.8);
-        z-index: 1000;
-        justify-content: center;
-        align-items: center;
-        font-size: 1.5rem;
-        font-weight: 600;
+    h1 { margin: 0; font-size: 1.8rem; }
+    .form-group { margin: 10px 0; display: flex; gap: 10px; }
+    input, button {
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      font-size: 1rem;
+    }
+    button {
+      background-color: #3b82f6;
+      color: white;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover { background-color: #2563eb; }
+    #summary {
+      margin-top: 20px;
+      font-weight: 600;
+      display: flex;
+      justify-content: space-between;
+    }
+    .chart-container {
+      display: flex;
+      justify-content: space-around;
+      flex-wrap: wrap;
+      margin-top: 20px;
+    }
+    canvas { max-width: 350px; margin: 10px; }
+    footer {
+      margin-top: 30px;
+      font-size: 0.9rem;
+      color: #777;
+      padding: 20px;
+      text-align: center;
     }
   </style>
 </head>
-<body class="bg-blue-50 flex flex-col items-center justify-center p-4">
+<body>
 
-  <!-- Loading Overlay -->
-  <div id="loading-overlay">
-    데이터 로딩 중...
-  </div>
-  
-  <h1 class="text-4xl font-extrabold text-gray-800 mb-6 flex items-center">
-    <span class="mr-2">💰</span> 잔고 요정 (Balance Fairy)
-  </h1>
+  <header>
+    <h1>💸 Balance Fairy</h1>
+    <p>Smart Budget & Expense Tracker</p>
+  </header>
 
-  <div id="main-container" class="w-full max-w-sm bg-white p-6 rounded-2xl shadow-xl hover:shadow-2xl transition duration-300 ease-in-out transform hover:-translate-y-1">
-    <p class="text-gray-600 mb-6 text-center text-sm">
-      한 달 예산을 설정하고 소비를 기록하여<br>실시간으로 예산 진행 상황을 확인하세요.
-    </p>
-
-    <!-- User ID Display -->
-    <div class="text-xs text-gray-400 mb-4 text-left hidden">
-      User ID: <span id="user-id-display" class="font-mono text-gray-600 truncate">Connecting...</span>
+  <div class="container">
+    <div class="form-group">
+      <input type="number" id="budgetInput" placeholder="Enter your total budget (₩)" />
+      <button id="setBudgetBtn">Set Budget</button>
     </div>
 
-    <div class="space-y-4">
-      <!-- Budget Input -->
-      <div class="flex flex-col">
-        <input type="number" id="budget-input" placeholder="예산 금액 (원)" 
-               class="p-3 border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150" />
-        <button id="set-budget-btn" onclick="setBudget()" 
-                class="w-full bg-blue-600 text-white font-semibold py-3 mt-2 rounded-xl hover:bg-blue-700 transition duration-200 shadow-md hover:shadow-lg">
-          예산 설정
-        </button>
-      </div>
-
-      <hr class="border-t border-gray-100 my-4">
-
-      <!-- Expense Input -->
-      <div class="flex flex-col space-y-2">
-        <input type="number" id="expense-input" placeholder="소비 금액 (원)" 
-               class="p-3 border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150" />
-        <input type="text" id="expense-item-input" placeholder="소비 항목 (예: 커피, 점심)" 
-               class="p-3 border border-gray-300 rounded-xl focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition duration-150" />
-        <button onclick="addExpense()" 
-                class="w-full bg-green-500 text-white font-semibold py-3 mt-2 rounded-xl hover:bg-green-600 transition duration-200 shadow-md hover:shadow-lg">
-          소비 추가
-        </button>
-      </div>
+    <div class="form-group">
+      <input type="text" id="itemInput" placeholder="Item name" />
+      <input type="number" id="amountInput" placeholder="Amount (₩)" />
+      <button id="addExpenseBtn">Add</button>
     </div>
 
-    <!-- Progress Bar -->
-    <div class="mt-6">
-      <div class="h-6 w-full bg-gray-200 rounded-full overflow-hidden shadow-inner">
-        <div id="bar" class="progress-bar h-full" style="width: 0%;"></div>
-      </div>
-      <p id="status" class="mt-3 text-lg font-medium text-gray-700">예산이 설정되지 않았습니다.</p>
+    <div id="summary">
+      <span>Total Budget: ₩<span id="totalBudget">0</span></span>
+      <span>Spent: ₩<span id="spent">0</span></span>
+      <span>Remaining: ₩<span id="remaining">0</span></span>
     </div>
 
-    <!-- Visualization Dashboard (Feature 3) -->
-    <div class="mt-6 flex flex-col items-center">
-      <h3 class="text-lg font-semibold text-gray-700 mb-3">소비 대시보드</h3>
-      <div class="relative w-40 h-40">
-        <svg class="w-full h-full" viewBox="0 0 36 36" style="transform: rotate(-90deg);">
-          <path class="text-gray-200"
-                d="M18 2.0845
-                   a 15.9155 15.9155 0 0 1 0 31.831
-                   a 15.9155 15.9155 0 0 1 0 -31.831"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3.8" />
-          <path id="donut-chart-ring"
-                class="text-blue-600"
-                d="M18 2.0845
-                   a 15.9155 15.9155 0 0 1 0 31.831
-                   a 15.9155 15.9155 0 0 1 0 -31.831"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="3.8"
-                stroke-dasharray="0, 100"
-                stroke-linecap="round"
-                style="transition: stroke-dasharray 0.5s ease;" />
-        </svg>
-        <div id="donut-chart-text" class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl font-bold text-gray-800">
-          0%
-        </div>
-      </div>
-    </div>
-    
-    <!-- Reset Button -->
-    <button onclick="resetMonth()" 
-            class="w-full mt-8 bg-gray-300 text-gray-800 font-semibold py-3 rounded-xl hover:bg-gray-400 transition duration-200 shadow-md">
-      리셋 (새로운 달 시작)
-    </button>
-  </div>
-
-  <!-- Custom Alert/Confirm Modal (Refactored) -->
-  <div id="custom-modal" class="modal-overlay">
-    <div class="modal-content">
-      <p id="modal-message" class="text-gray-800 mb-4 font-medium"></p>
-      
-      <!-- Confirmation Buttons Group (Hidden by default for Alerts) -->
-      <div id="modal-confirm-group" class="hidden space-x-4 justify-center">
-        <!-- Cancel button is blue by default -->
-        <button id="modal-cancel-btn" onclick="closeModal()" 
-                class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition duration-150">취소</button>
-        <!-- Confirm button is red (destructive/primary) -->
-        <button id="modal-confirm-btn" 
-                class="bg-red-600 text-white py-2 px-6 rounded-lg hover:bg-red-700 transition duration-150">확인</button>
-      </div>
-      
-      <!-- Alert Button (Default for simple messages) -->
-      <button id="modal-alert-btn" onclick="closeModal()" 
-              class="bg-blue-600 text-white py-2 px-6 rounded-lg hover:bg-blue-700 transition duration-150">확인</button>
+    <div class="chart-container">
+      <canvas id="barChart"></canvas>
+      <canvas id="pieChart"></canvas>
     </div>
   </div>
 
-  <footer class="mt-8 text-sm text-gray-400">
-    잔고 요정 (Balance Fairy)
-  </footer>
+  <footer>Team 3 - 이나경, 최현서, 김수아랑, 김혜진, 이현진</footer>
 
-  <!-- Firebase Setup -->
   <script type="module">
-    // --- Firebase Imports and Global Variables ---
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-    import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-    import { getFirestore, doc, setDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-    import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+    // === Local Preview Mode ===
+    console.log("💡 Local Preview Mode 활성화됨 (Firebase 미사용)");
 
-    // Global variables for Firebase services
-    let db;
-    let auth;
-    let userId = null;
-    let budgetDocRef = null;
-    let isInitialized = false;
-    let unsubscribeSnapshot = null;
+    let budget = 0;
+    let expenses = [];
 
-    // --- Data Variables (Global) ---
-    window.budget = 0;
-    window.expenses = []; // NEW: Store list of expenses
-    window.total = 0; // Calculated from expenses
-    
-    // --- Firestore Initialization and Authentication ---
-    async function initFirebase() {
-        try {
-            document.getElementById('loading-overlay').style.display = 'flex';
-            
-            // 1. Get Config and App ID
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-            const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+    // LocalStorage에서 불러오기
+    const savedData = JSON.parse(localStorage.getItem("balanceFairyData") || "{}");
+    if (savedData.budget) budget = savedData.budget;
+    if (savedData.expenses) expenses = savedData.expenses;
 
-            if (!firebaseConfig || Object.keys(firebaseConfig).length === 0) {
-                console.error("Firebase config is missing.");
-                throw new Error("Firebase configuration error.");
-            }
+    // === Chart.js 설정 ===
+    const barCtx = document.getElementById('barChart').getContext('2d');
+    const pieCtx = document.getElementById('pieChart').getContext('2d');
 
-            // 2. Initialize App and Services
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-            setLogLevel('Debug');
-            
-            // 3. Authentication
-            const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
-
-            await new Promise(resolve => {
-                onAuthStateChanged(auth, async (user) => {
-                    if (user) {
-                        userId = user.uid;
-                    } else {
-                        // Sign in using the provided token if available, otherwise anonymously
-                        if (initialAuthToken) {
-                            await signInWithCustomToken(auth, initialAuthToken).catch(e => {
-                                console.error("Custom token sign-in failed, falling back to anonymous:", e);
-                                return signInAnonymously(auth);
-                            });
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                        // Re-run onAuthStateChanged to pick up the new user/uid
-                        return; 
-                    }
-                    
-                    document.getElementById('user-id-display').textContent = userId;
-                    
-                    // 4. Set Document Reference
-                    const docPath = `artifacts/${appId}/users/${userId}/budget_data/state`;
-                    budgetDocRef = doc(db, docPath);
-
-                    // 5. Start Real-time Listener (onSnapshot)
-                    startSnapshotListener();
-
-                    isInitialized = true;
-                    resolve();
-                });
-            });
-
-        } catch (error) {
-            console.error("Firebase initialization failed:", error);
-            customAlert("데이터베이스 초기화 실패. 콘솔을 확인하세요.");
-        } finally {
-            document.getElementById('loading-overlay').style.display = 'none';
-        }
-    }
-
-    // Function to handle Real-time updates
-    function startSnapshotListener() {
-        if (unsubscribeSnapshot) {
-            unsubscribeSnapshot(); // Stop previous listener if active
-        }
-
-        unsubscribeSnapshot = onSnapshot(budgetDocRef, (doc) => {
-            if (doc.exists()) {
-                const data = doc.data();
-                window.budget = data.budget || 0;
-                window.expenses = data.expenses || []; // UPDATED: Read expenses array
-                // Calculate total from the expenses array
-                window.total = window.expenses.reduce((acc, exp) => acc + exp.amount, 0);
-                
-                document.getElementById('budget-input').value = window.budget || '';
-                updateUI();
-            } else {
-                // Document doesn't exist, set initial state
-                window.budget = 0;
-                window.expenses = [];
-                window.total = 0;
-                updateUI();
-            }
-        }, (error) => {
-            console.error("Firestore snapshot error:", error);
-            customAlert("데이터 로드 중 오류가 발생했습니다.");
-        });
-    }
-
-    // --- Modal Functions (Refactored for Alert and Confirm) ---
-
-    window.closeModal = function() {
-      document.getElementById('custom-modal').classList.remove('open');
-    }
-
-    // Custom Modal implementation for simple messages (replaces alert())
-    window.customAlert = function(message) {
-      const modal = document.getElementById('custom-modal');
-      document.getElementById('modal-message').textContent = message;
-      
-      // Configure for alert
-      document.getElementById('modal-confirm-group').classList.add('hidden');
-      document.getElementById('modal-alert-btn').classList.remove('hidden');
-      
-      modal.classList.add('open');
-    }
-
-    // Custom Modal implementation for confirmation (replaces confirm())
-    window.customConfirm = function({ message, confirmText, cancelText, onConfirm, onCancel, isDestructive = false }) {
-        const modal = document.getElementById('custom-modal');
-        const confirmGroup = document.getElementById('modal-confirm-group');
-        const confirmBtn = document.getElementById('modal-confirm-btn');
-        const cancelBtn = document.getElementById('modal-cancel-btn');
-
-        document.getElementById('modal-message').textContent = message;
-        
-        // Configure for confirmation
-        document.getElementById('modal-alert-btn').classList.add('hidden');
-        confirmGroup.classList.remove('hidden');
-        confirmGroup.classList.add('flex'); // Ensure flex is applied when shown
-
-        // Set button texts and styles
-        confirmBtn.textContent = confirmText || "확인";
-        cancelBtn.textContent = cancelText || "취소";
-        
-        // Apply destructive style if needed
-        confirmBtn.classList.toggle('bg-red-600', isDestructive);
-        confirmBtn.classList.toggle('hover:bg-red-700', isDestructive);
-        confirmBtn.classList.toggle('bg-green-600', !isDestructive);
-        confirmBtn.classList.toggle('hover:bg-green-700', !isDestructive);
-
-        // Set up confirm action (Clone and replace to clear all previous listeners safely)
-        const newConfirmBtn = confirmBtn.cloneNode(true); 
-        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn); 
-        newConfirmBtn.onclick = () => {
-            closeModal();
-            onConfirm();
-        };
-
-        // Set up cancel action
-        const newCancelBtn = cancelBtn.cloneNode(true);
-        cancelBtn.parentNode.replaceChild(newCancelBtn, cancelBtn);
-        newCancelBtn.onclick = () => {
-            closeModal();
-            if (onCancel) onCancel();
-        };
-
-        modal.classList.add('open');
-    }
-
-
-    // --- Utility Functions ---
-
-    // NEW: Central function to save data to Firestore
-    window.saveDataToFirestore = async function(data) {
-        if (!budgetDocRef || !isInitialized) return console.error("Firestore not ready.");
-        
-        try {
-            // Save the entire state object
-            await setDoc(budgetDocRef, { 
-                ...data, 
-                lastUpdate: new Date().toISOString() 
-            });
-            console.log("Data saved to Firestore.");
-        } catch (e) {
-            console.error("Error writing document:", e);
-            customAlert("데이터 저장 실패.");
-        }
-    }
-
-    // REMOVED: getThresholdMessage and checkThresholds (Replaced by AI alerts)
-
-    window.notifyUser = function(msg) {
-        if (Notification.permission === "granted") {
-            new Notification("잔고 요정 알림", {
-                body: msg,
-                icon: 'https://placehold.co/48x48/60a5fa/ffffff?text=%24'
-            });
-        } else {
-            // Use custom modal instead of alert
-            customAlert(msg);
-        }
-    }
-
-    // NEW: Function to update the Donut Chart (Feature 3)
-    window.updateDonutChart = function(percent) {
-        const ring = document.getElementById('donut-chart-ring');
-        const text = document.getElementById('donut-chart-text');
-        
-        const displayPercent = percent.toFixed(0);
-        const safePercent = Math.max(0, Math.min(100, percent));
-        
-        ring.style.strokeDasharray = `${safePercent}, 100`;
-
-        // Change color if over 100%
-        const isOverBudget = percent > 100;
-        const ringColor = isOverBudget ? 'text-red-600' : 'text-blue-600';
-        const textColor = isOverBudget ? 'text-red-600' : 'text-gray-800';
-        
-        ring.setAttribute('class', `transition-all duration-500 ${ringColor}`);
-        text.className = `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-2xl font-bold ${textColor}`;
-        
-        text.textContent = `${displayPercent}%`;
-    }
-
-    window.updateUI = function() {
-        const bar = document.getElementById('bar');
-        const status = document.getElementById('status');
-        if (!window.budget) {
-            bar.style.width = "0%";
-            status.innerText = "예산이 설정되지 않았습니다.";
-            bar.classList.remove('bg-red-500');
-            updateDonutChart(0); // Reset donut chart
-            return;
-        }
-
-        const percent = (window.total / window.budget) * 100;
-        const displayPercentForBar = Math.min(percent, 100).toFixed(1);
-
-        // Update progress bar width and color
-        bar.style.width = displayPercentForBar + "%";
-        bar.classList.toggle('bg-red-600', percent > 100); 
-        bar.classList.toggle('bg-blue-600', percent <= 100);
-
-        const remaining = window.budget - window.total;
-        
-        if (remaining >= 0) {
-             status.innerText = `총 소비: ${window.total.toLocaleString()}원 | 남은 예산: ${remaining.toLocaleString()}원 (${percent.toFixed(1)}%)`;
-             status.classList.remove('text-red-500');
-             status.classList.add('text-gray-700');
-        } else {
-           status.innerText = `🚨 예산 초과: ${window.total.toLocaleString()}원 | 초과 금액: ${(-remaining).toLocaleString()}원 (${percent.toFixed(1)}%)`;
-           status.classList.add('text-red-500');
-           status.classList.remove('text-gray-700');
-        }
-
-        // Update Donut Chart (Feature 3)
-        updateDonutChart(percent);
-    }
-
-    // --- Main Application Logic ---
-
-    // UPDATED: setBudget function
-    window.setBudget = function() {
-        const inputElement = document.getElementById('budget-input');
-        const value = parseInt(inputElement.value);
-
-        if (isNaN(value) || value <= 0) {
-            customAlert("⚠️ 올바른 예산 금액 (양수)을 입력하세요.");
-            return;
-        }
-        
-        const newBudget = value;
-
-        const setBudgetHandler = (resetExpenses = false) => {
-            window.budget = newBudget;
-            if (resetExpenses) {
-                window.expenses = [];
-                window.total = 0;
-            }
-            // Save new budget and potentially cleared expenses
-            saveDataToFirestore({ budget: window.budget, expenses: window.expenses });
-            customAlert(`✅ 예산 ${newBudget.toLocaleString()}원으로 설정되었습니다. ` + (resetExpenses ? "(소비 기록 초기화됨)" : "(소비 기록 유지됨)"));
-        };
-
-        // If there is existing expenditure, ask the user if they want to reset it.
-        if (window.expenses.length > 0 && window.budget > 0) { 
-            const message = `새 예산 ${newBudget.toLocaleString()}원으로 설정합니다. 기존 소비 기록(총 ${window.total.toLocaleString()}원)을 초기화할까요?`;
-            
-            window.customConfirm({
-                message: message,
-                confirmText: "소비 기록 초기화",
-                cancelText: "소비 기록 유지",
-                onConfirm: () => setBudgetHandler(true),
-                onCancel: () => setBudgetHandler(false),
-                isDestructive: false
-            });
-            
-        } else {
-            // No existing data or budget, just set it and reset expenses for cleanliness
-            setBudgetHandler(true);
-        }
-    }
-
-    // UPDATED: addExpense function
-    window.addExpense = function() {
-        if (!window.budget) {
-            customAlert("⚠️ 먼저 예산을 설정해 주세요.");
-            return;
-        }
-
-        const amountElement = document.getElementById('expense-input');
-        const itemElement = document.getElementById('expense-item-input');
-        
-        const amount = parseInt(amountElement.value);
-        const item = itemElement.value.trim();
-
-        if (isNaN(amount) || amount <= 0) {
-            customAlert("⚠️ 소비 금액 (양수)을 입력하세요.");
-            return;
-        }
-        if (!item) {
-            customAlert("⚠️ 소비 항목을 입력하세요. (예: 커피, 점심)");
-            return;
-        }
-
-        // Feature 1: High-Value Expense Warning
-        if (amount >= 100000) {
-            customAlert(`🚨 10만 원 이상 고액 지출! "${item}" 항목에 ${amount.toLocaleString()}원을 사용했습니다. 지출 계획을 확인하세요!`);
-        }
-
-        const newExpense = {
-            amount: amount,
-            item: item,
-            date: new Date().toISOString()
-        };
-
-        // Update local state and save to Firestore
-        const newExpenses = [...window.expenses, newExpense];
-        window.expenses = newExpenses; // Update local state
-        saveDataToFirestore({ budget: window.budget, expenses: newExpenses });
-        
-        // Clear inputs
-        amountElement.value = '';
-        itemElement.value = '';
-
-        // Feature 2: AI-Powered Alert (Asynchronous)
-        getAIPoweredAlert(newExpense, newExpenses);
-    }
-
-    // UPDATED: resetMonth function
-    window.resetMonth = function() {
-        const resetAction = () => {
-            window.budget = 0;
-            window.total = 0;
-            window.expenses = [];
-            saveDataToFirestore({ budget: 0, expenses: [] }); // Save cleared state
-            document.getElementById('budget-input').value = '';
-            customAlert("🔄 새로운 달로 초기화되었습니다.");
-        };
-
-        window.customConfirm({
-            message: "정말로 모든 예산 데이터를 초기화하고 새로운 달을 시작하시겠습니까?",
-            confirmText: "예, 초기화합니다",
-            cancelText: "취소",
-            onConfirm: resetAction,
-            isDestructive: true // This is a destructive action
-        });
-    }
-
-    // --- NEW: Gemini API Call for AI Alerts (Feature 2) ---
-    
-    // API call function with exponential backoff
-    const callGeminiAPI = async (payload) => {
-        const apiKey = ""; // API key is handled by the environment
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${apiKey}`;
-        
-        let response;
-        let retries = 3;
-        let delay = 1000;
-
-        for (let i = 0; i < retries; i++) {
-            try {
-                response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                if (response.ok) {
-                    const result = await response.json();
-                    const candidate = result.candidates?.[0];
-                    if (candidate && candidate.content?.parts?.[0]?.text) {
-                        return candidate.content.parts[0].text;
-                    } else {
-                        // Handle cases of safety blocks or empty response
-                        console.warn("API returned no text, possibly due to safety settings.", result);
-                        return null;
-                    }
-                } else {
-                    throw new Error(`API request failed with status ${response.status}`);
-                }
-            } catch (error) {
-                console.error(`API call attempt ${i + 1} failed:`, error.message);
-                if (i < retries - 1) {
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    delay *= 2; // Exponential backoff
-                } else {
-                    console.error("All API retries failed.");
-                    return null; // Return null on final failure
-                }
-            }
-        }
-        return null;
-    };
-
-    // AI Alert generation function
-    window.getAIPoweredAlert = async function(newExpense, allExpenses) {
-        if (window.budget <= 0) return; // No budget, no advice
-
-        // Format expense history for the prompt
-        // To save tokens, let's summarize and only send recent items
-        const recentExpenses = allExpenses.slice(-10); // Last 10 expenses
-        const historySummary = recentExpenses.map(exp => `- ${exp.item}: ${exp.amount.toLocaleString()}원`).join('\n');
-        const totalSpent = allExpenses.reduce((acc, exp) => acc + exp.amount, 0);
-        
-        const systemPrompt = `당신은 '잔고 요정'이라는 이름의 친절하고 현명한 재정 조언가입니다. 사용자의 예산과 소비 패턴을 분석하여 개인화된 조언을 제공합니다.
-- 톤: 기본적으로는 친절하고 격려하지만, 사용자가 예산을 초과할 위험이 크면 단호하고 경고하는 톤을 사용하세요.
-- 응답: 반드시 1-2문장의 짧고 간결한 한국어 메시지로 응답하세요.
-- 사용자가 방금 지출한 항목을 반드시 언급하세요.`;
-
-        const userQuery = `
-- 총 예산: ${window.budget.toLocaleString()}원
-- 현재까지 총 소비: ${totalSpent.toLocaleString()}원
-- 방금 지출한 항목: ${newExpense.item} (${newExpense.amount.toLocaleString()}원)
-- 최근 10건 소비 내역:
-${historySummary}
-
-이 상황을 바탕으로 사용자에게 "잔고 요정"으로서 1-2문장의 조언을 해주세요.`;
-
-        const payload = {
-            contents: [{ parts: [{ text: userQuery }] }],
-            systemInstruction: {
-                parts: [{ text: systemPrompt }]
-            },
-            // Add safety settings to allow more responses
-            safetySettings: [
-                { "category": "HARM_CATEGORY_HARASSMENT", "threshold": "BLOCK_NONE" },
-                { "category": "HARM_CATEGORY_HATE_SPEECH", "threshold": "BLOCK_NONE" },
-                { "category": "HARM_CATEGORY_SEXUALLY_EXPLICIT", "threshold": "BLOCK_NONE" },
-                { "category": "HARM_CATEGORY_DANGEROUS_CONTENT", "threshold": "BLOCK_NONE" }
-            ]
-        };
-
-        console.log("Requesting AI advice...");
-
-        const aiMessage = await callGeminiAPI(payload);
-
-        if (aiMessage) {
-            // Use notifyUser for desktop notification AND customAlert as a fallback
-            const finalMessage = `🧚‍♀️ 잔고 요정의 조언: ${aiMessage}`;
-            notifyUser(finalMessage);
-        } else {
-            console.log("AI-powered alert could not be generated.");
-            // Do not show an error to the user, just fail silently.
-        }
-    }
-
-    
-    // --- Initial Setup Call ---
-    document.addEventListener('DOMContentLoaded', () => {
-        // Request notification permission immediately on load
-        if (Notification.permission !== "granted") {
-             Notification.requestPermission();
-        }
-        // Start Firebase initialization
-        initFirebase();
+    const barChart = new Chart(barCtx, {
+      type: 'bar',
+      data: {
+        labels: expenses.map(e => e.item),
+        datasets: [{
+          label: 'Expenses (₩)',
+          data: expenses.map(e => e.amount)
+        }]
+      },
+      options: { responsive: true }
     });
 
+    const pieChart = new Chart(pieCtx, {
+      type: 'doughnut',
+      data: {
+        labels: ['Spent', 'Remaining'],
+        datasets: [{
+          data: [0, budget],
+          backgroundColor: ['#f87171', '#86efac']
+        }]
+      },
+      options: { responsive: true }
+    });
+
+    // === UI 업데이트 ===
+    function updateUI() {
+      const totalSpent = expenses.reduce((sum, e) => sum + e.amount, 0);
+      document.getElementById('totalBudget').textContent = budget.toLocaleString();
+      document.getElementById('spent').textContent = totalSpent.toLocaleString();
+      document.getElementById('remaining').textContent = (budget - totalSpent).toLocaleString();
+
+      barChart.data.labels = expenses.map(e => e.item);
+      barChart.data.datasets[0].data = expenses.map(e => e.amount);
+      barChart.update();
+
+      pieChart.data.datasets[0].data = [totalSpent, Math.max(budget - totalSpent, 0)];
+      pieChart.update();
+    }
+
+    // === 데이터 저장 ===
+    function saveData() {
+      localStorage.setItem("balanceFairyData", JSON.stringify({ budget, expenses }));
+    }
+
+    // === 이벤트 연결 ===
+    document.getElementById('setBudgetBtn').addEventListener('click', () => {
+      budget = parseInt(document.getElementById('budgetInput').value) || 0;
+      saveData();
+      updateUI();
+    });
+
+    document.getElementById('addExpenseBtn').addEventListener('click', () => {
+      const item = document.getElementById('itemInput').value.trim();
+      const amount = parseInt(document.getElementById('amountInput').value);
+      if (!item || isNaN(amount)) return alert("Please enter valid item and amount.");
+      expenses.push({ item, amount });
+      saveData();
+      updateUI();
+      document.getElementById('itemInput').value = '';
+      document.getElementById('amountInput').value = '';
+    });
+
+    // === 초기 로드 시 UI 갱신 ===
+    updateUI();
   </script>
 </body>
 </html>
